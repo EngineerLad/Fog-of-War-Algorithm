@@ -15,11 +15,6 @@ Here is a step-by-step breakdown of how this algorithm works:
 5. The output value is divided by the global maximum of that function to get the probability of that input belonging to part of the output's general data profile.
 6. Each of those probabilities are cross examined across within each other's same variable types, then the predicted output types for each variable is cross examined with each other to see which output type has the most qualities fulfilled to reach a conclusion.
 
-The above algorithm fulfills the needs of the list of properties the program needs to fulfill for HW5:
-a. objective function: the objective function is the function generated via compound average probability
-b. the decision variables are the inputs themselves
-c. the training and testing datasets will be tested in different ratios: 50/50, 33/67, 25/75, and 10/90 respectively
-d. the optimization routine is creating the general function itself, since amplitude and breadth, and thus probability nodes and zones, can be controlled by the function calculation process itself.
 '''
 
 import numpy as np
@@ -71,10 +66,9 @@ class fogofwar():
                 initdatapoint.append(data[i])
                 uniqueoutputs.remove(data[i][-1])
         #remove the points used for the initial data points from the rest of the training dataset
+        remainderpoints = data
         for i in range(len(initdatapoint)):
-            data.remove(initdatapoint[i])
-        uniqueoutputs = np.unique(outputlist)
-
+            remainderpoints.remove(initdatapoint[i])
 
         #generate general functions:
         generaleq = []
@@ -93,11 +87,12 @@ class fogofwar():
 
         #Then start analyzing other points
         dpprobs = []
-        for i in range(len(data)):
-            for j in range(len(data[i])-1):
+        for i in range(len(remainderpoints)):
+            for j in range(len(remainderpoints[i])-1):
                 probabilitylist=[]
                 for k in range(generaleq):
                     probabilitylist.append(generaleq[k][j][data[i][j]])
                 max_prob = max(probabilitylist)
                 likelyoutcome = uniqueoutputs[probabilitylist.index(max_prob)]
                 if likelyoutcome != data[i][-1]:
+                    
