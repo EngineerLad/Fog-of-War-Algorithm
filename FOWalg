@@ -1,6 +1,6 @@
 '''
 "Fog-of-War" Machine Learning Algorithm
-Takes pre-formatted input and output data to train a model based on spherical Gaussian probability distribution in 3 dimensions.
+Takes pre-formatted input and output data to train a model based on spherical Gaussian probability distribution(created using interpolation) in 3 dimensions.
 Conceptually, it is a distribution-based clustering algorithm. However, this methodology takes advantage of multi-nodal analysis, 
 dynamically expanding centroid area and creating multiple centroid nodes for a more robust algorithm than simply calculating the distance from the calculated centroid based off collected data.
 This allows the program to work with less data points while training and still give viable data outputs in the testing and application phase.
@@ -52,23 +52,43 @@ class fogofwar():
         self.algvar["numinputvar"] = numinputvar
         #gets number of unique outputs for the dataset
         outputlist = []
-        for i in range(len(data)-1):
+        for i in range(len(data)):
             outputlist.append(data[i][-1])
         uniqueoutputs = np.unique(outputlist)
         numuniqueout = len(uniqueoutputs)
         self.algvar["numuniqueout"] = numuniqueout
+        #gets maximum number of decimal points to work with (significant figures, so takes the smallest number of decimal places and rounds the rest of the values based on that and determines the data)
+        smallest = 1000000 #kekw i need to work on how to set this value properly
+        for i in range(len(data)):
+            for j in range(len(data[0])):
+                sigfigcount = str(a)[::-1].find('.')
+                if sigfigcount < smallest:
+                    smallest = sigfigcount
+        #rounds to the sigfig for each value
+        for i in range(len(data)):
+            for j in range(len(data[0])):
+                data[i][j] = round(data[i][j],smallest)
 
 
+               
+
+        #building a list of the initiation data points from the original data list to start the equations out
         initdatapoint = []
 
         for i in range(len(data)):
             if data[i][-1] in uniqueoutputs:
+                #adds the point containing the output label
                 initdatapoint.append(data[i])
+                #then removes the point to avoid confusion
+                #aka a reminder to MAKE THIS MORE EFFICIENT REEEEEEEEEEE
                 uniqueoutputs.remove(data[i][-1])
+                
         #remove the points used for the initial data points from the rest of the training dataset
         remainderpoints = data
         for i in range(len(initdatapoint)):
             remainderpoints.remove(initdatapoint[i])
+
+        
 
         #generate general functions:
         generaleq = []
@@ -95,4 +115,4 @@ class fogofwar():
                 max_prob = max(probabilitylist)
                 likelyoutcome = uniqueoutputs[probabilitylist.index(max_prob)]
                 if likelyoutcome != data[i][-1]:
-                    
+
