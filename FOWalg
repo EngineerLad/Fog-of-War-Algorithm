@@ -19,7 +19,9 @@ Here is a step-by-step breakdown of how this algorithm works:
 
 import numpy as np
 import matplotlib.pyplot as plt
+import scipy
 from scipy import interpolate
+import math
 
 
 class fogofwar():
@@ -29,23 +31,16 @@ class fogofwar():
             "numinputvar" : 0, 
             #numuniqueout = number of unique outcomes based on data profiling
             "numuniqueout" : 0,
-            #minslopemag = the minimum slope magnitude between data input values in the general function before it is considered a separate node instead of a wider range for the same characteristic. 
-            # This is the function that will readjust automatically given cost values. Each slope has a default slope of 1, and there is one slope for each input
-            "minslopemags" : [],
-            #dynlr = dynamic learning rate. Calculated using the difference in cost per iteration. If the rate of change in cost is positive and increasing, the value increases. If it is instead negative and decreasing, the value decreases.
+            #EXPERIMENTAL YET TO BE ADDED: dynlr = dynamic learning rate. Calculated using the difference in cost per iteration. If the rate of change in cost is positive and increasing, the value increases. If it is instead negative and decreasing, the value decreases.
             # If it is negative/increasing or positive/decreasing, it will remain constant. Learning rates will be a randn generated at initialization.
-            "dynlr" : [],
-            #costvalues = a list of cost values per general equation. Past one point of data per unique output, the program can make a prediction based on the existing general functions. 
-            # Based on the performance per input variable type(the probabilities for every variation of one input variable for each unique output), it will adjust the minimum slope magnitudes and amplitudes accordingly.
-            # The cost is calculated by taking the inverse difference of the probability of other functions and the probability of the actual. It is then multiplied by the dynamic learning rate and that determines the change in slope for that iteration.
-            "costvalues" : [],
-            #generaleq = general equations for the model. stored here after training has ended and retrieved for use here.
+            #"dynlr" : [],
+            #generaleq = general values on a range for the model. places initial and future data points here
             "generaleq":[]
 
 
-
             }
-    #hazetrain = function that takes a list of datapoints formatted as such: [[input variables here, output variable here],datapoint2,...]. It then processes the information of the given dataset as explained above.
+
+    #deMistify= function that takes a list of datapoints formatted as such: [[input variables here, output variable here],datapoint2,...]. It then processes the information of the given dataset as explained above.
     def deMistify(self,data):
         #gets number of input variables per datapoint
         numinputvar = len(data[0])
@@ -61,7 +56,7 @@ class fogofwar():
         smallest = 1000000 #kekw i need to work on how to set this value properly
         for i in range(len(data)):
             for j in range(len(data[0])):
-                sigfigcount = str(a)[::-1].find('.')
+                sigfigcount = str(data[i][j])[::-1].find('.')
                 if sigfigcount < smallest:
                     smallest = sigfigcount
         #rounds to the sigfig for each value
@@ -69,7 +64,19 @@ class fogofwar():
             for j in range(len(data[0])):
                 data[i][j] = round(data[i][j],smallest)
 
-
+        #calculates a safe range for the program to operate
+        largestnumber = 0
+        
+        for i in range(len(data)):
+            for j in range(len(data[0])):
+                if abs(data[i][j]) > largestnumber:
+                    largestnumber = abs(data[i][j])
+                    
+        boundsvalue = 0
+        if int(math.log10(largestnumber)) == 0:
+            boundsvalue = 10**((-1*smallest)+1)
+        else:
+            boundsvalue = int(math.log10(largestnumber)) + 2
                
 
         #building a list of the initiation data points from the original data list to start the equations out
@@ -97,22 +104,97 @@ class fogofwar():
         #Start with the first datapoint per output as the foundation.
         for i in range(len(initdatapoint)):
             for j in range(len(initdatapoint[i])-1):
-                x = np.linspace(0,int(initdatapoint[i][j])*2,int(initdatapoint[i][j])*2-1)
-                y = [0] * int(initdatapoint[i][j])*2
+                x = np.arange((-1*boundsvalue),boundsvalue,10**(-1*(smallest)))
+                y = [0] * boundsvalue*2
                 y[int(initdatapoint[i][j])-1] = 1
-                function = interpolate.interp1d(x,y,kind = 'cubic')
-                eqgroup.append(function)
+                eqgroup.append([[x],[y]])
             generaleq.append(eqgroup)
             eqgroup = []
+        #the generaleq array has a length that matches the total number of possible outcomes.
+        #the eqgroup has a length that matches the total number of input variables
+
 
         #Then start analyzing other points
-        dpprobs = []
+
+        masterprobabilitylist = []
+        probsublist1 = []
+        probsublist2 = []
+        masterindexlist = []
+        subindexlist = []
+        #builds a master probability list and a master index list. The MPL keeps record of the probability values for each outcome PER POINT, and the MIL keeps record of what the program thinks should be the outcome
         for i in range(len(remainderpoints)):
             for j in range(len(remainderpoints[i])-1):
-                probabilitylist=[]
                 for k in range(generaleq):
-                    probabilitylist.append(generaleq[k][j][data[i][j]])
-                max_prob = max(probabilitylist)
-                likelyoutcome = uniqueoutputs[probabilitylist.index(max_prob)]
-                if likelyoutcome != data[i][-1]:
+                    #this gets the x and y of that particular variable's probabilities
+                    x = generaleq[k][j][0]
+                    y = generaleq[k][j][1]
+                    #this defines the interpolation function
+                    interpolator = scipy.interpolate.interp1d(x,y,kind = 'cubic')
+                    #this gets the interpolated values, which defines the probability between previously defined points
+                    xnew = np.arange(-1*(len(generaleq[k][j][0])),(len(generaleq[k][j][0])),0.001)
+                    interpolatedy = interpolator(xnew)
+                    #this appends the sublist with the value of the probability for that particular outcome for that variable.
+                    probsublist2.append(interpolatedy[remainderpoints[i][j]])
+                #this calculates the index of the maximum probability within that sublist
+                #this also translates to the index within the possible outcome list of the highest probable outcome based on this particular input variable's value
+                maximumcomputedprobableoutcomeindex = np.where(probsublist2 == np.amax(probsublist2))
+                #this adds that index to a sublist for indices
+                subindexlist.append(maximumcomputedprobableoutcomeindex)
+
+                #this adds the prob sublist to the master list
+                probsublist1.append(probsublist2)
+                #this clears the sublist
+                probsublist2 = []
+
+            # after cycling through ONE datapoint, it adds the subindexlist, whose length is equal to the number of input variables per point, to tha masterindex list, which, at the end, should equal to the number of remaining points.
+            masterindexlist.append(subindexlist)
+            subindexlist = []
+            #REMINDER: the probsublist2 has the length k, which is the number of possible outcomes
+            #this sublist contains the liklihood for each output that the datapoint, that this particular input variable belongs to, should be a particular outcome
+            #the probsublist1 has the length j, which is the number of input variables
+            #this sublist is just a sublist of all the input variables, so we have a list of arrays of the probabilities for each input variable
+
+
+
+
+            #this is where the training begins, where the general equation points are modified based on each additional point
+            #training should be iterated per point, so it is placed here
+
+            #first, we get the ground truth value of this point
+            GTV = remainderpoints[i][-1]
+            #then we find the index of the GTV in the list of possible outcomes
+            #this should directly translate to the index of what SHOULD be the highest probability value in the sublist
+            indexmain = np.where(uniqueoutputs == GTV)
+
+            #then we use this index within each probability sublist 2 contained in the probability sublist 1 for this particular datapoint to change the value of the probability for this variable towards the ground truth and away from the other outcomes
+            #this is also where the cost function is defined(needs fine tuning, but should work(?))
+            for i in range(generaleq):
+                for j in range(generaleq[0]):
+                    if i == indexmain:
+                        for k in range(len(remainderpoints[i])-1):
+                            generaleq[i][j][1][remainderpoints[i][k]] = probsublist1[j][i] * (1+(1-probsublist1[j][i]))
+                    else:
+                        for k in range(len(remainderpoints[i])-1):
+                            if generaleq[i][j][1][remainderpoints[i][k]] > 0:
+                                generaleq[i][j][1][remainderpoints[i][k]] = probsublist1[j][i] * (1+(1-probsublist1[j][i]))
+
+
+            #finally, the probability sublist 2 is added to the master probability list, which should end with a length that matches the number of remaining points after taking away the calibration points
+            masterprobabilitylist.append(probsublist1)
+            probsublist1 = []
+
+        #closing the method is appending all the values of the generaleq values to the instance variables
+        self.algvar["generaleq"] = generaleq
+
+
+
+
+        
+
+
+
+
+
+
+        
 
